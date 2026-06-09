@@ -289,8 +289,8 @@
   </div>
 
   <div class="header-der">
-    <button class="badge-modo" onclick="cambiarModoDashboard()" id="botonModo">
-      Modo campaña actual
+    <button class="badge-modo" onclick="cambiarVistaDashboard()" id="botonModo">
+      Vista prueba actual
     </button>
     <img src="img/cerbero.png" alt="Cerbero" class="logo-cerbero">
   </div>
@@ -299,13 +299,13 @@
 <div class="contenedor">
 
   <div class="barra-acciones">
-    <div id="textoCampania">
-      <strong>Campaña de inspección:</strong>
-      el dashboard muestra la campaña actual. El histórico permanente puede consultarse con el botón superior.
+    <div id="textoVista">
+      <strong>Prueba actual:</strong>
+      se muestran únicamente las identificaciones confirmadas de la prueba activa. El histórico general puede consultarse con el botón superior.
     </div>
 
-    <button class="boton-reiniciar" onclick="reiniciarCampania()">
-      Nueva campaña de inspección
+    <button class="boton-reiniciar" onclick="reiniciarPruebaActual()">
+      Iniciar nueva prueba
     </button>
   </div>
 
@@ -344,7 +344,7 @@
   <div class="grid-superior">
 
     <div class="seccion">
-      <h2>Resumen acumulado por herramienta</h2>
+      <h2 id="tituloResumen">Resumen acumulado por herramienta</h2>
       <div class="herramientas-grid" id="tarjetasHerramientas"></div>
     </div>
 
@@ -361,20 +361,20 @@
       <p class="estado" id="estadoSistema">Conectando con Firebase...</p>
       <p class="estado" id="ultimaSincronizacion">Última sincronización: ---</p>
       <p class="estado" id="tasaEventos">Tamaño promedio de lote: --- identificaciones</p>
-      <p class="estado-alerta" id="estadoCampania"></p>
+      <p class="estado-alerta" id="estadoVista"></p>
     </div>
 
   </div>
 
   <div class="seccion">
-    <h2>Frecuencia acumulada de identificaciones confirmadas</h2>
+    <h2 id="tituloGrafica">Frecuencia acumulada de identificaciones confirmadas</h2>
     <div class="grafica-contenedor">
       <canvas id="graficaHerramientas"></canvas>
     </div>
   </div>
 
   <div class="seccion" style="margin-top: 20px;">
-    <h2>Últimas identificaciones enviadas a Firebase</h2>
+    <h2 id="tituloTabla">Últimas identificaciones enviadas a Firebase</h2>
     <table>
       <thead>
         <tr>
@@ -382,7 +382,7 @@
           <th>Herramienta</th>
           <th>Confianza</th>
           <th>Conteo acumulado herramienta</th>
-          <th>Consecutivo global</th>
+          <th>Consecutivo de prueba</th>
         </tr>
       </thead>
       <tbody id="tablaEventos"></tbody>
@@ -398,7 +398,7 @@
 <script>
   const URL_FIREBASE_BASE = "https://ropec2026-herramientas-yolo-default-rtdb.firebaseio.com";
 
-  let modoDashboard = "campania";
+  let vistaDashboard = "actual";
   let grafica = null;
 
   const HERRAMIENTAS = {
@@ -412,30 +412,43 @@
   };
 
   function obtenerUrlFirebase() {
-    if (modoDashboard === "historico") {
+    if (vistaDashboard === "historico") {
       return URL_FIREBASE_BASE + "/historico_eventos.json";
     }
 
     return URL_FIREBASE_BASE + "/lotes_eventos.json";
   }
 
-  function cambiarModoDashboard() {
-    if (modoDashboard === "campania") {
-      modoDashboard = "historico";
+  function cambiarVistaDashboard() {
+    if (vistaDashboard === "actual") {
+      vistaDashboard = "historico";
 
-      document.getElementById("botonModo").textContent = "Modo histórico acumulado";
-      document.getElementById("textoCampania").innerHTML =
-        "<strong>Histórico acumulado:</strong> se muestran todos los lotes conservados permanentemente en Firebase.";
-      document.getElementById("estadoCampania").textContent =
-        "Vista histórica activada. El botón de nueva campaña no borra este histórico.";
+      document.getElementById("botonModo").textContent = "Vista histórico general";
+      document.getElementById("textoVista").innerHTML =
+        "<strong>Histórico general:</strong> se reconstruyen todos los registros conservados en Firebase, incluyendo pruebas anteriores.";
+      document.getElementById("tituloResumen").textContent =
+        "Resumen histórico por herramienta";
+      document.getElementById("tituloGrafica").textContent =
+        "Frecuencia histórica de identificaciones confirmadas";
+      document.getElementById("tituloTabla").textContent =
+        "Últimas identificaciones del histórico general";
+      document.getElementById("estadoVista").textContent =
+        "Vista histórico general activada. El botón de nueva prueba no modifica este histórico.";
+
     } else {
-      modoDashboard = "campania";
+      vistaDashboard = "actual";
 
-      document.getElementById("botonModo").textContent = "Modo campaña actual";
-      document.getElementById("textoCampania").innerHTML =
-        "<strong>Campaña de inspección:</strong> el dashboard muestra la campaña actual. El histórico permanente puede consultarse con el botón superior.";
-      document.getElementById("estadoCampania").textContent =
-        "Vista de campaña actual activada.";
+      document.getElementById("botonModo").textContent = "Vista prueba actual";
+      document.getElementById("textoVista").innerHTML =
+        "<strong>Prueba actual:</strong> se muestran únicamente las identificaciones confirmadas de la prueba activa. El histórico general puede consultarse con el botón superior.";
+      document.getElementById("tituloResumen").textContent =
+        "Resumen acumulado por herramienta";
+      document.getElementById("tituloGrafica").textContent =
+        "Frecuencia acumulada de identificaciones confirmadas";
+      document.getElementById("tituloTabla").textContent =
+        "Últimas identificaciones enviadas a Firebase";
+      document.getElementById("estadoVista").textContent =
+        "Vista prueba actual activada.";
     }
 
     cargarDatos();
@@ -449,13 +462,10 @@
       if (!datos) {
         limpiarDashboard();
 
-        if (modoDashboard === "historico") {
-          document.getElementById("estadoSistema").textContent =
-            "Firebase conectado. Sin datos en el histórico permanente.";
-        } else {
-          document.getElementById("estadoSistema").textContent =
-            "Firebase conectado. Sin datos en la campaña actual.";
-        }
+        document.getElementById("estadoSistema").textContent =
+          vistaDashboard === "historico"
+            ? "Firebase conectado. Sin datos en el histórico general."
+            : "Firebase conectado. Sin datos en la prueba actual.";
 
         document.getElementById("ultimaSincronizacion").textContent =
           "Última sincronización: " + new Date().toLocaleTimeString();
@@ -463,31 +473,35 @@
         return;
       }
 
-      const lotes = Object.values(datos);
+      const lotes = ordenarLotesPorFecha(Object.values(datos));
       const totalLotes = lotes.length;
       const ultimoLote = lotes[lotes.length - 1];
 
-      const eventos = [];
+      const eventos = extraerEventosOrdenados(lotes);
+
       let sumaConfianza = 0;
       let totalConfianzas = 0;
 
-      lotes.forEach(lote => {
-        if (lote.eventos) {
-          lote.eventos.forEach(evento => {
-            eventos.push(evento);
-
-            if (evento.confianza) {
-              sumaConfianza += Number(evento.confianza);
-              totalConfianzas++;
-            }
-          });
+      eventos.forEach(evento => {
+        if (evento.confianza) {
+          sumaConfianza += Number(evento.confianza);
+          totalConfianzas++;
         }
       });
 
-      const conteoAcumulado = obtenerConteoDesdeUltimoLote(ultimoLote, eventos);
+      let conteoAcumulado = {};
+      let totalIdentificaciones = 0;
+
+      if (vistaDashboard === "actual") {
+        conteoAcumulado = obtenerConteoDesdeUltimoLote(ultimoLote, eventos);
+        totalIdentificaciones = obtenerTotalIdentificaciones(ultimoLote, eventos);
+      } else {
+        conteoAcumulado = reconstruirConteoHistorico(eventos);
+        totalIdentificaciones = eventos.length;
+      }
+
       const confianzaPorHerramienta = calcularConfianzaPorHerramienta(eventos);
 
-      const totalIdentificaciones = obtenerTotalIdentificaciones(ultimoLote, eventos);
       const confianzaPromedio = totalConfianzas > 0
         ? (sumaConfianza / totalConfianzas).toFixed(1)
         : 0;
@@ -508,9 +522,9 @@
         : "---";
 
       document.getElementById("estadoSistema").textContent =
-        modoDashboard === "historico"
-          ? "Conectado a Firebase. Vista: histórico acumulado."
-          : "Conectado a Firebase. Vista: campaña actual.";
+        vistaDashboard === "historico"
+          ? "Conectado a Firebase. Vista: histórico general."
+          : "Conectado a Firebase. Vista: prueba actual.";
 
       document.getElementById("ultimaSincronizacion").textContent =
         "Última sincronización: " + new Date().toLocaleTimeString();
@@ -528,20 +542,57 @@
     }
   }
 
-  function obtenerConteoDesdeUltimoLote(ultimoLote, eventos) {
-    const conteo = {};
-
-    Object.keys(HERRAMIENTAS).forEach(clave => {
-      conteo[clave] = 0;
+  function ordenarLotesPorFecha(lotes) {
+    return lotes.sort((a, b) => {
+      const fechaA = a.fecha_hora_envio || "";
+      const fechaB = b.fecha_hora_envio || "";
+      return fechaA.localeCompare(fechaB);
     });
+  }
+
+  function extraerEventosOrdenados(lotes) {
+    const eventos = [];
+
+    lotes.forEach(lote => {
+      if (lote.eventos) {
+        lote.eventos.forEach(evento => {
+          eventos.push(evento);
+        });
+      }
+    });
+
+    return eventos.sort((a, b) => {
+      const fechaA = a.fecha_hora || "";
+      const fechaB = b.fecha_hora || "";
+      return fechaA.localeCompare(fechaB);
+    });
+  }
+
+  function obtenerConteoDesdeUltimoLote(ultimoLote, eventos) {
+    const conteo = inicializarConteo();
 
     if (ultimoLote && ultimoLote.resumen_conteo) {
       Object.entries(ultimoLote.resumen_conteo).forEach(([clave, valor]) => {
-        conteo[clave] = Number(valor) || 0;
+        if (clave in conteo) {
+          conteo[clave] = Number(valor) || 0;
+        }
       });
 
       return conteo;
     }
+
+    eventos.forEach(evento => {
+      const clave = evento.herramienta;
+      if (clave in conteo) {
+        conteo[clave]++;
+      }
+    });
+
+    return conteo;
+  }
+
+  function reconstruirConteoHistorico(eventos) {
+    const conteo = inicializarConteo();
 
     eventos.forEach(evento => {
       const clave = evento.herramienta;
@@ -607,6 +658,16 @@
     return menor;
   }
 
+  function inicializarConteo() {
+    const conteo = {};
+
+    Object.keys(HERRAMIENTAS).forEach(clave => {
+      conteo[clave] = 0;
+    });
+
+    return conteo;
+  }
+
   function convertirNombreVisible(clave) {
     if (HERRAMIENTAS[clave]) {
       return HERRAMIENTAS[clave].visible;
@@ -624,20 +685,20 @@
     document.getElementById("totalLotes").textContent = "0";
     document.getElementById("tasaEventos").textContent = "Tamaño promedio de lote: --- identificaciones";
 
-    crearTarjetas({});
-    actualizarGrafica({});
+    crearTarjetas(inicializarConteo(), {});
+    actualizarGrafica(inicializarConteo());
     document.getElementById("tablaEventos").innerHTML = "";
   }
 
-  async function reiniciarCampania() {
-    if (modoDashboard === "historico") {
-      alert("Estás en modo histórico acumulado. Cambia a modo campaña actual para iniciar una nueva campaña.");
+  async function reiniciarPruebaActual() {
+    if (vistaDashboard === "historico") {
+      alert("Estás en vista histórico general. Cambia a vista prueba actual para iniciar una nueva prueba.");
       return;
     }
 
     const confirmar = confirm(
-      "¿Deseas iniciar una nueva campaña de inspección?\n\n" +
-      "Esto borrará únicamente la campaña actual. El histórico acumulado se conservará."
+      "¿Deseas iniciar una nueva prueba?\n\n" +
+      "Esto borrará únicamente los registros de la prueba actual. El histórico general se conservará."
     );
 
     if (!confirmar) {
@@ -645,7 +706,7 @@
     }
 
     try {
-      document.getElementById("estadoCampania").textContent = "Reiniciando campaña de inspección...";
+      document.getElementById("estadoVista").textContent = "Reiniciando prueba actual...";
 
       const respuesta = await fetch(URL_FIREBASE_BASE + "/lotes_eventos.json", {
         method: "DELETE"
@@ -653,19 +714,19 @@
 
       if (respuesta.ok) {
         limpiarDashboard();
-        document.getElementById("estadoCampania").textContent =
-          "Nueva campaña iniciada correctamente. El histórico acumulado se conservó.";
+        document.getElementById("estadoVista").textContent =
+          "Nueva prueba iniciada correctamente. El histórico general se conservó.";
         document.getElementById("estadoSistema").textContent =
           "Firebase conectado. Esperando nuevas identificaciones confirmadas del sistema local.";
       } else {
-        document.getElementById("estadoCampania").textContent =
-          "No se pudo reiniciar la campaña. Código: " + respuesta.status;
+        document.getElementById("estadoVista").textContent =
+          "No se pudo reiniciar la prueba. Código: " + respuesta.status;
       }
 
     } catch (error) {
       console.error(error);
-      document.getElementById("estadoCampania").textContent =
-        "Error al reiniciar la campaña. Revisa la conexión o las reglas de Firebase.";
+      document.getElementById("estadoVista").textContent =
+        "Error al reiniciar la prueba. Revisa la conexión o las reglas de Firebase.";
     }
   }
 
