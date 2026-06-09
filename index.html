@@ -293,7 +293,7 @@
   <div class="barra-acciones">
     <div>
       <strong>Campaña de inspección:</strong>
-      el dashboard conserva el histórico acumulado de eventos enviados desde el sistema local.
+      el dashboard conserva el histórico acumulado de apariciones confirmadas enviadas desde el sistema local en lotes configurables.
     </div>
 
     <button class="boton-reiniciar" onclick="reiniciarCampania()">
@@ -303,7 +303,7 @@
 
   <div class="kpis">
     <div class="card">
-      <h3>Total de eventos</h3>
+      <h3>Total de apariciones confirmadas</h3>
       <p id="totalEventos">0</p>
     </div>
 
@@ -318,7 +318,7 @@
     </div>
 
     <div class="card">
-      <h3>Última detección</h3>
+      <h3>Última detección enviada</h3>
       <p id="ultimaDeteccion">---</p>
     </div>
 
@@ -328,7 +328,7 @@
     </div>
 
     <div class="card">
-      <h3>Total de lotes</h3>
+      <h3>Total de lotes recibidos</h3>
       <p id="totalLotes">0</p>
     </div>
   </div>
@@ -336,7 +336,7 @@
   <div class="grid-superior">
 
     <div class="seccion">
-      <h2>Resumen por herramienta</h2>
+      <h2>Resumen acumulado por herramienta</h2>
       <div class="herramientas-grid" id="tarjetasHerramientas"></div>
     </div>
 
@@ -345,35 +345,36 @@
       <div class="arquitectura">
         <div>Cámara USB + Python</div>
         <div>YOLOv11 Nano</div>
-        <div>Conteo por eventos</div>
+        <div>Conteo por aparición confirmada</div>
+        <div>Envío por lotes configurables</div>
         <div>Firebase Realtime Database</div>
         <div>Dashboard Web en GitHub Pages</div>
       </div>
       <p class="estado" id="estadoSistema">Conectando con Firebase...</p>
       <p class="estado" id="ultimaSincronizacion">Última sincronización: ---</p>
-      <p class="estado" id="tasaEventos">Tasa acumulada: --- eventos por lote</p>
+      <p class="estado" id="tasaEventos">Tamaño promedio de lote: --- apariciones</p>
       <p class="estado-alerta" id="estadoCampania"></p>
     </div>
 
   </div>
 
   <div class="seccion">
-    <h2>Frecuencia de herramientas detectadas</h2>
+    <h2>Frecuencia acumulada de apariciones confirmadas</h2>
     <div class="grafica-contenedor">
       <canvas id="graficaHerramientas"></canvas>
     </div>
   </div>
 
   <div class="seccion" style="margin-top: 20px;">
-    <h2>Últimos eventos registrados</h2>
+    <h2>Últimas apariciones enviadas a Firebase</h2>
     <table>
       <thead>
         <tr>
           <th>Fecha y hora</th>
           <th>Herramienta</th>
           <th>Confianza</th>
-          <th>Conteo herramienta</th>
-          <th>Conteo total</th>
+          <th>Conteo acumulado herramienta</th>
+          <th>Consecutivo global</th>
         </tr>
       </thead>
       <tbody id="tablaEventos"></tbody>
@@ -391,13 +392,34 @@
   const URL_FIREBASE = URL_FIREBASE_BASE + "/lotes_eventos.json";
 
   const HERRAMIENTAS = {
-    "Alicate": "img/alicate.png",
-    "Batería 9V": "img/bateria_9v.png",
-    "Cinta de aislar": "img/cinta_aislar.png",
-    "Desarmador": "img/desarmador.png",
-    "Kit de puntas": "img/kit_puntas.png",
-    "Pinzas de corte": "img/pinzas_corte.png",
-    "Pinzas de punta": "img/pinzas_punta.png"
+    "alicate": {
+      visible: "Alicate",
+      img: "img/alicate.png"
+    },
+    "bateria_9v": {
+      visible: "Batería 9V",
+      img: "img/bateria_9v.png"
+    },
+    "cinta_aislar": {
+      visible: "Cinta de aislar",
+      img: "img/cinta_aislar.png"
+    },
+    "desarmador": {
+      visible: "Desarmador",
+      img: "img/desarmador.png"
+    },
+    "kit_puntas": {
+      visible: "Kit de puntas",
+      img: "img/kit_puntas.png"
+    },
+    "pinzas_corte": {
+      visible: "Pinzas de corte",
+      img: "img/pinzas_corte.png"
+    },
+    "pinzas_punta": {
+      visible: "Pinzas de punta",
+      img: "img/pinzas_punta.png"
+    }
   };
 
   let grafica = null;
@@ -415,72 +437,50 @@
         return;
       }
 
+      const lotes = Object.values(datos);
+      const totalLotes = lotes.length;
+
+      const ultimoLote = lotes[lotes.length - 1];
+
       const eventos = [];
-      const conteoHerramientas = {};
-      const confianzaPorHerramienta = {};
       let sumaConfianza = 0;
       let totalConfianzas = 0;
-      let totalLotes = 0;
 
-      Object.values(datos).forEach(lote => {
-        totalLotes++;
-
+      lotes.forEach(lote => {
         if (lote.eventos) {
           lote.eventos.forEach(evento => {
             eventos.push(evento);
 
-            const nombre = evento.herramienta_visible || evento.herramienta;
-
-            if (!conteoHerramientas[nombre]) {
-              conteoHerramientas[nombre] = 0;
-              confianzaPorHerramienta[nombre] = [];
-            }
-
-            conteoHerramientas[nombre]++;
-
             if (evento.confianza) {
-              const confianza = Number(evento.confianza);
-              sumaConfianza += confianza;
+              sumaConfianza += Number(evento.confianza);
               totalConfianzas++;
-              confianzaPorHerramienta[nombre].push(confianza);
             }
           });
         }
       });
 
-      const totalEventos = eventos.length;
+      const conteoAcumulado = obtenerConteoDesdeUltimoLote(ultimoLote, eventos);
+      const confianzaPorHerramienta = calcularConfianzaPorHerramienta(eventos);
+
+      const totalApariciones = obtenerTotalApariciones(ultimoLote, eventos);
       const confianzaPromedio = totalConfianzas > 0
         ? (sumaConfianza / totalConfianzas).toFixed(1)
         : 0;
 
-      let herramientaTop = "---";
-      let herramientaMenos = "---";
-      let maxConteo = 0;
-      let minConteo = Infinity;
-
-      Object.entries(conteoHerramientas).forEach(([herramienta, cantidad]) => {
-        if (cantidad > maxConteo) {
-          maxConteo = cantidad;
-          herramientaTop = herramienta;
-        }
-
-        if (cantidad < minConteo) {
-          minConteo = cantidad;
-          herramientaMenos = herramienta;
-        }
-      });
+      const herramientaTop = obtenerHerramientaTop(conteoAcumulado);
+      const herramientaMenos = obtenerHerramientaMenos(conteoAcumulado);
 
       const ultimoEvento = eventos.length > 0 ? eventos[eventos.length - 1] : null;
-      const tasaPorLote = totalLotes > 0 ? (totalEventos / totalLotes).toFixed(1) : 0;
+      const tasaPorLote = totalLotes > 0 ? (eventos.length / totalLotes).toFixed(1) : 0;
 
-      document.getElementById("totalEventos").textContent = totalEventos;
+      document.getElementById("totalEventos").textContent = totalApariciones;
       document.getElementById("herramientaTop").textContent = herramientaTop;
       document.getElementById("herramientaMenos").textContent = herramientaMenos;
       document.getElementById("confianzaPromedio").textContent = confianzaPromedio + "%";
       document.getElementById("totalLotes").textContent = totalLotes;
 
       document.getElementById("ultimaDeteccion").textContent = ultimoEvento
-        ? (ultimoEvento.herramienta_visible || ultimoEvento.herramienta)
+        ? (ultimoEvento.herramienta_visible || convertirNombreVisible(ultimoEvento.herramienta))
         : "---";
 
       document.getElementById("estadoSistema").textContent = "Conectado a Firebase.";
@@ -488,18 +488,105 @@
         "Última sincronización: " + new Date().toLocaleTimeString();
 
       document.getElementById("tasaEventos").textContent =
-        "Tasa acumulada: " + tasaPorLote + " eventos por lote";
+        "Tamaño promedio de lote: " + tasaPorLote + " apariciones enviadas";
 
       document.getElementById("estadoCampania").textContent = "";
 
-      actualizarGrafica(conteoHerramientas);
-      crearTarjetas(conteoHerramientas, confianzaPorHerramienta);
+      actualizarGrafica(conteoAcumulado);
+      crearTarjetas(conteoAcumulado, confianzaPorHerramienta);
       actualizarTabla(eventos);
 
     } catch (error) {
       console.error(error);
       document.getElementById("estadoSistema").textContent = "Error al conectar con Firebase.";
     }
+  }
+
+  function obtenerConteoDesdeUltimoLote(ultimoLote, eventos) {
+    const conteo = {};
+
+    Object.keys(HERRAMIENTAS).forEach(clave => {
+      conteo[clave] = 0;
+    });
+
+    if (ultimoLote && ultimoLote.resumen_conteo) {
+      Object.entries(ultimoLote.resumen_conteo).forEach(([clave, valor]) => {
+        conteo[clave] = Number(valor) || 0;
+      });
+
+      return conteo;
+    }
+
+    eventos.forEach(evento => {
+      const clave = evento.herramienta;
+      if (clave in conteo) {
+        conteo[clave]++;
+      }
+    });
+
+    return conteo;
+  }
+
+  function obtenerTotalApariciones(ultimoLote, eventos) {
+    if (ultimoLote && ultimoLote.conteo_total) {
+      return Number(ultimoLote.conteo_total);
+    }
+
+    return eventos.length;
+  }
+
+  function calcularConfianzaPorHerramienta(eventos) {
+    const confianza = {};
+
+    Object.keys(HERRAMIENTAS).forEach(clave => {
+      confianza[clave] = [];
+    });
+
+    eventos.forEach(evento => {
+      const clave = evento.herramienta;
+
+      if (clave in confianza && evento.confianza) {
+        confianza[clave].push(Number(evento.confianza));
+      }
+    });
+
+    return confianza;
+  }
+
+  function obtenerHerramientaTop(conteoAcumulado) {
+    let top = "---";
+    let max = 0;
+
+    Object.entries(conteoAcumulado).forEach(([clave, cantidad]) => {
+      if (cantidad > max) {
+        max = cantidad;
+        top = convertirNombreVisible(clave);
+      }
+    });
+
+    return top;
+  }
+
+  function obtenerHerramientaMenos(conteoAcumulado) {
+    let menor = "---";
+    let min = Infinity;
+
+    Object.entries(conteoAcumulado).forEach(([clave, cantidad]) => {
+      if (cantidad > 0 && cantidad < min) {
+        min = cantidad;
+        menor = convertirNombreVisible(clave);
+      }
+    });
+
+    return menor;
+  }
+
+  function convertirNombreVisible(clave) {
+    if (HERRAMIENTAS[clave]) {
+      return HERRAMIENTAS[clave].visible;
+    }
+
+    return clave || "---";
   }
 
   function limpiarDashboard() {
@@ -509,7 +596,7 @@
     document.getElementById("ultimaDeteccion").textContent = "---";
     document.getElementById("confianzaPromedio").textContent = "0%";
     document.getElementById("totalLotes").textContent = "0";
-    document.getElementById("tasaEventos").textContent = "Tasa acumulada: --- eventos por lote";
+    document.getElementById("tasaEventos").textContent = "Tamaño promedio de lote: --- apariciones";
 
     crearTarjetas({});
     actualizarGrafica({});
@@ -538,7 +625,7 @@
         document.getElementById("estadoCampania").textContent =
           "Nueva campaña iniciada correctamente. Los indicadores se reiniciaron en cero.";
         document.getElementById("estadoSistema").textContent =
-          "Firebase conectado. Esperando nuevos eventos del sistema local.";
+          "Firebase conectado. Esperando nuevas apariciones confirmadas del sistema local.";
       } else {
         document.getElementById("estadoCampania").textContent =
           "No se pudo reiniciar la campaña. Código: " + respuesta.status;
@@ -551,9 +638,16 @@
     }
   }
 
-  function actualizarGrafica(conteoHerramientas) {
-    const etiquetas = Object.keys(conteoHerramientas);
-    const valores = Object.values(conteoHerramientas);
+  function actualizarGrafica(conteoAcumulado) {
+    const etiquetas = [];
+    const valores = [];
+
+    Object.entries(conteoAcumulado).forEach(([clave, cantidad]) => {
+      if (cantidad > 0) {
+        etiquetas.push(convertirNombreVisible(clave));
+        valores.push(cantidad);
+      }
+    });
 
     const ctx = document.getElementById("graficaHerramientas");
 
@@ -566,7 +660,7 @@
       data: {
         labels: etiquetas,
         datasets: [{
-          label: "Eventos registrados",
+          label: "Apariciones confirmadas",
           data: valores,
           borderWidth: 1
         }]
@@ -596,13 +690,13 @@
     });
   }
 
-  function crearTarjetas(conteoHerramientas, confianzaPorHerramienta = {}) {
+  function crearTarjetas(conteoAcumulado, confianzaPorHerramienta = {}) {
     const contenedor = document.getElementById("tarjetasHerramientas");
     contenedor.innerHTML = "";
 
-    Object.entries(HERRAMIENTAS).forEach(([nombre, imagen]) => {
-      const eventos = conteoHerramientas[nombre] || 0;
-      const confianzas = confianzaPorHerramienta[nombre] || [];
+    Object.entries(HERRAMIENTAS).forEach(([clave, datos]) => {
+      const apariciones = conteoAcumulado[clave] || 0;
+      const confianzas = confianzaPorHerramienta[clave] || [];
 
       const promedio = confianzas.length > 0
         ? (confianzas.reduce((a, b) => a + b, 0) / confianzas.length).toFixed(1)
@@ -612,10 +706,10 @@
       tarjeta.className = "herramienta-card";
 
       tarjeta.innerHTML = `
-        <img src="${imagen}" alt="${nombre}">
+        <img src="${datos.img}" alt="${datos.visible}">
         <div>
-          <h4>${nombre}</h4>
-          <p>Eventos: <strong>${eventos}</strong></p>
+          <h4>${datos.visible}</h4>
+          <p>Apariciones confirmadas: <strong>${apariciones}</strong></p>
           <p>Confianza promedio: <strong>${promedio}%</strong></p>
         </div>
       `;
@@ -635,7 +729,7 @@
 
       fila.innerHTML = `
         <td>${evento.fecha_hora || ""}</td>
-        <td>${evento.herramienta_visible || evento.herramienta || ""}</td>
+        <td>${evento.herramienta_visible || convertirNombreVisible(evento.herramienta)}</td>
         <td>${evento.confianza || ""}%</td>
         <td>${evento.conteo_herramienta || ""}</td>
         <td>${evento.conteo_total || ""}</td>
