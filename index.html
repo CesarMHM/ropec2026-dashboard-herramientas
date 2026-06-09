@@ -58,6 +58,12 @@
       font-size: 13px;
       font-weight: bold;
       white-space: nowrap;
+      border: none;
+      cursor: pointer;
+    }
+
+    .badge-modo:hover {
+      background: #084C38;
     }
 
     .contenedor {
@@ -283,7 +289,9 @@
   </div>
 
   <div class="header-der">
-    <div class="badge-modo">Modo histórico acumulado</div>
+    <button class="badge-modo" onclick="cambiarModoDashboard()" id="botonModo">
+      Modo campaña actual
+    </button>
     <img src="img/cerbero.png" alt="Cerbero" class="logo-cerbero">
   </div>
 </header>
@@ -291,9 +299,9 @@
 <div class="contenedor">
 
   <div class="barra-acciones">
-    <div>
+    <div id="textoCampania">
       <strong>Campaña de inspección:</strong>
-      el dashboard conserva el histórico acumulado de identificaciones confirmadas enviadas desde el sistema local.
+      el dashboard muestra la campaña actual. El histórico permanente puede consultarse con el botón superior.
     </div>
 
     <button class="boton-reiniciar" onclick="reiniciarCampania()">
@@ -389,57 +397,74 @@
 
 <script>
   const URL_FIREBASE_BASE = "https://ropec2026-herramientas-yolo-default-rtdb.firebaseio.com";
-  const URL_FIREBASE = URL_FIREBASE_BASE + "/lotes_eventos.json";
+
+  let modoDashboard = "campania";
+  let grafica = null;
 
   const HERRAMIENTAS = {
-    "alicate": {
-      visible: "Alicate",
-      img: "img/alicate.png"
-    },
-    "bateria_9v": {
-      visible: "Batería 9V",
-      img: "img/bateria_9v.png"
-    },
-    "cinta_aislar": {
-      visible: "Cinta de aislar",
-      img: "img/cinta_aislar.png"
-    },
-    "desarmador": {
-      visible: "Desarmador",
-      img: "img/desarmador.png"
-    },
-    "kit_puntas": {
-      visible: "Kit de puntas",
-      img: "img/kit_puntas.png"
-    },
-    "pinzas_corte": {
-      visible: "Pinzas de corte",
-      img: "img/pinzas_corte.png"
-    },
-    "pinzas_punta": {
-      visible: "Pinzas de punta",
-      img: "img/pinzas_punta.png"
-    }
+    "alicate": { visible: "Alicate", img: "img/alicate.png" },
+    "bateria_9v": { visible: "Batería 9V", img: "img/bateria_9v.png" },
+    "cinta_aislar": { visible: "Cinta de aislar", img: "img/cinta_aislar.png" },
+    "desarmador": { visible: "Desarmador", img: "img/desarmador.png" },
+    "kit_puntas": { visible: "Kit de puntas", img: "img/kit_puntas.png" },
+    "pinzas_corte": { visible: "Pinzas de corte", img: "img/pinzas_corte.png" },
+    "pinzas_punta": { visible: "Pinzas de punta", img: "img/pinzas_punta.png" }
   };
 
-  let grafica = null;
+  function obtenerUrlFirebase() {
+    if (modoDashboard === "historico") {
+      return URL_FIREBASE_BASE + "/historico_eventos.json";
+    }
+
+    return URL_FIREBASE_BASE + "/lotes_eventos.json";
+  }
+
+  function cambiarModoDashboard() {
+    if (modoDashboard === "campania") {
+      modoDashboard = "historico";
+
+      document.getElementById("botonModo").textContent = "Modo histórico acumulado";
+      document.getElementById("textoCampania").innerHTML =
+        "<strong>Histórico acumulado:</strong> se muestran todos los lotes conservados permanentemente en Firebase.";
+      document.getElementById("estadoCampania").textContent =
+        "Vista histórica activada. El botón de nueva campaña no borra este histórico.";
+    } else {
+      modoDashboard = "campania";
+
+      document.getElementById("botonModo").textContent = "Modo campaña actual";
+      document.getElementById("textoCampania").innerHTML =
+        "<strong>Campaña de inspección:</strong> el dashboard muestra la campaña actual. El histórico permanente puede consultarse con el botón superior.";
+      document.getElementById("estadoCampania").textContent =
+        "Vista de campaña actual activada.";
+    }
+
+    cargarDatos();
+  }
 
   async function cargarDatos() {
     try {
-      const respuesta = await fetch(URL_FIREBASE);
+      const respuesta = await fetch(obtenerUrlFirebase());
       const datos = await respuesta.json();
 
       if (!datos) {
         limpiarDashboard();
-        document.getElementById("estadoSistema").textContent = "Firebase conectado. Sin datos en la campaña actual.";
+
+        if (modoDashboard === "historico") {
+          document.getElementById("estadoSistema").textContent =
+            "Firebase conectado. Sin datos en el histórico permanente.";
+        } else {
+          document.getElementById("estadoSistema").textContent =
+            "Firebase conectado. Sin datos en la campaña actual.";
+        }
+
         document.getElementById("ultimaSincronizacion").textContent =
           "Última sincronización: " + new Date().toLocaleTimeString();
+
         return;
       }
 
       const lotes = Object.values(datos);
       const totalLotes = lotes.length;
-
       const ultimoLote = lotes[lotes.length - 1];
 
       const eventos = [];
@@ -462,18 +487,17 @@
       const conteoAcumulado = obtenerConteoDesdeUltimoLote(ultimoLote, eventos);
       const confianzaPorHerramienta = calcularConfianzaPorHerramienta(eventos);
 
-      const totalApariciones = obtenerTotalApariciones(ultimoLote, eventos);
+      const totalIdentificaciones = obtenerTotalIdentificaciones(ultimoLote, eventos);
       const confianzaPromedio = totalConfianzas > 0
         ? (sumaConfianza / totalConfianzas).toFixed(1)
         : 0;
 
       const herramientaTop = obtenerHerramientaTop(conteoAcumulado);
       const herramientaMenos = obtenerHerramientaMenos(conteoAcumulado);
-
       const ultimoEvento = eventos.length > 0 ? eventos[eventos.length - 1] : null;
       const tasaPorLote = totalLotes > 0 ? (eventos.length / totalLotes).toFixed(1) : 0;
 
-      document.getElementById("totalEventos").textContent = totalApariciones;
+      document.getElementById("totalEventos").textContent = totalIdentificaciones;
       document.getElementById("herramientaTop").textContent = herramientaTop;
       document.getElementById("herramientaMenos").textContent = herramientaMenos;
       document.getElementById("confianzaPromedio").textContent = confianzaPromedio + "%";
@@ -483,14 +507,16 @@
         ? (ultimoEvento.herramienta_visible || convertirNombreVisible(ultimoEvento.herramienta))
         : "---";
 
-      document.getElementById("estadoSistema").textContent = "Conectado a Firebase.";
+      document.getElementById("estadoSistema").textContent =
+        modoDashboard === "historico"
+          ? "Conectado a Firebase. Vista: histórico acumulado."
+          : "Conectado a Firebase. Vista: campaña actual.";
+
       document.getElementById("ultimaSincronizacion").textContent =
         "Última sincronización: " + new Date().toLocaleTimeString();
 
       document.getElementById("tasaEventos").textContent =
         "Tamaño promedio de lote: " + tasaPorLote + " identificaciones enviadas";
-
-      document.getElementById("estadoCampania").textContent = "";
 
       actualizarGrafica(conteoAcumulado);
       crearTarjetas(conteoAcumulado, confianzaPorHerramienta);
@@ -527,7 +553,7 @@
     return conteo;
   }
 
-  function obtenerTotalApariciones(ultimoLote, eventos) {
+  function obtenerTotalIdentificaciones(ultimoLote, eventos) {
     if (ultimoLote && ultimoLote.conteo_total) {
       return Number(ultimoLote.conteo_total);
     }
@@ -604,9 +630,14 @@
   }
 
   async function reiniciarCampania() {
+    if (modoDashboard === "historico") {
+      alert("Estás en modo histórico acumulado. Cambia a modo campaña actual para iniciar una nueva campaña.");
+      return;
+    }
+
     const confirmar = confirm(
       "¿Deseas iniciar una nueva campaña de inspección?\n\n" +
-      "Esto borrará los registros actuales de Firebase utilizados por este dashboard."
+      "Esto borrará únicamente la campaña actual. El histórico acumulado se conservará."
     );
 
     if (!confirmar) {
@@ -616,14 +647,14 @@
     try {
       document.getElementById("estadoCampania").textContent = "Reiniciando campaña de inspección...";
 
-      const respuesta = await fetch(URL_FIREBASE, {
+      const respuesta = await fetch(URL_FIREBASE_BASE + "/lotes_eventos.json", {
         method: "DELETE"
       });
 
       if (respuesta.ok) {
         limpiarDashboard();
         document.getElementById("estadoCampania").textContent =
-          "Nueva campaña iniciada correctamente. Los indicadores se reiniciaron en cero.";
+          "Nueva campaña iniciada correctamente. El histórico acumulado se conservó.";
         document.getElementById("estadoSistema").textContent =
           "Firebase conectado. Esperando nuevas identificaciones confirmadas del sistema local.";
       } else {
@@ -695,7 +726,7 @@
     contenedor.innerHTML = "";
 
     Object.entries(HERRAMIENTAS).forEach(([clave, datos]) => {
-      const apariciones = conteoAcumulado[clave] || 0;
+      const identificaciones = conteoAcumulado[clave] || 0;
       const confianzas = confianzaPorHerramienta[clave] || [];
 
       const promedio = confianzas.length > 0
@@ -709,7 +740,7 @@
         <img src="${datos.img}" alt="${datos.visible}">
         <div>
           <h4>${datos.visible}</h4>
-          <p>Identificaciones confirmadas: <strong>${apariciones}</strong></p>
+          <p>Identificaciones confirmadas: <strong>${identificaciones}</strong></p>
           <p>Confianza promedio: <strong>${promedio}%</strong></p>
         </div>
       `;
