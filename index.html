@@ -293,7 +293,7 @@
   <div class="barra-acciones">
     <div>
       <strong>Campaña de inspección:</strong>
-      el dashboard conserva el histórico acumulado de apariciones confirmadas enviadas desde el sistema local en lotes configurables.
+      el dashboard conserva el histórico acumulado de identificaciones confirmadas enviadas desde el sistema local en lotes configurables.
     </div>
 
     <button class="boton-reiniciar" onclick="reiniciarCampania()">
@@ -303,7 +303,7 @@
 
   <div class="kpis">
     <div class="card">
-      <h3>Total de apariciones confirmadas</h3>
+      <h3>Total de identificaciones confirmadas</h3>
       <p id="totalEventos">0</p>
     </div>
 
@@ -345,28 +345,28 @@
       <div class="arquitectura">
         <div>Cámara USB + Python</div>
         <div>YOLOv11 Nano</div>
-        <div>Conteo por aparición confirmada</div>
+        <div>Conteo por identificación confirmada</div>
         <div>Envío por lotes configurables</div>
         <div>Firebase Realtime Database</div>
         <div>Dashboard Web en GitHub Pages</div>
       </div>
       <p class="estado" id="estadoSistema">Conectando con Firebase...</p>
       <p class="estado" id="ultimaSincronizacion">Última sincronización: ---</p>
-      <p class="estado" id="tasaEventos">Tamaño promedio de lote: --- apariciones</p>
+      <p class="estado" id="tasaEventos">Tamaño promedio de lote: --- identificaciones</p>
       <p class="estado-alerta" id="estadoCampania"></p>
     </div>
 
   </div>
 
   <div class="seccion">
-    <h2>Frecuencia acumulada de apariciones confirmadas</h2>
+    <h2>Frecuencia acumulada de identificaciones confirmadas</h2>
     <div class="grafica-contenedor">
       <canvas id="graficaHerramientas"></canvas>
     </div>
   </div>
 
   <div class="seccion" style="margin-top: 20px;">
-    <h2>Últimas apariciones enviadas a Firebase</h2>
+    <h2>Últimas identificaciones enviadas a Firebase</h2>
     <table>
       <thead>
         <tr>
@@ -596,7 +596,7 @@
     document.getElementById("ultimaDeteccion").textContent = "---";
     document.getElementById("confianzaPromedio").textContent = "0%";
     document.getElementById("totalLotes").textContent = "0";
-    document.getElementById("tasaEventos").textContent = "Tamaño promedio de lote: --- apariciones";
+    document.getElementById("tasaEventos").textContent = "Tamaño promedio de lote: --- identificaciones";
 
     crearTarjetas({});
     actualizarGrafica({});
@@ -625,7 +625,7 @@
         document.getElementById("estadoCampania").textContent =
           "Nueva campaña iniciada correctamente. Los indicadores se reiniciaron en cero.";
         document.getElementById("estadoSistema").textContent =
-          "Firebase conectado. Esperando nuevas apariciones confirmadas del sistema local.";
+          "Firebase conectado. Esperando nuevas identificaciones confirmadas del sistema local.";
       } else {
         document.getElementById("estadoCampania").textContent =
           "No se pudo reiniciar la campaña. Código: " + respuesta.status;
@@ -660,7 +660,7 @@
       data: {
         labels: etiquetas,
         datasets: [{
-          label: "Apariciones confirmadas",
+          label: "Identificaciones confirmadas",
           data: valores,
           borderWidth: 1
         }]
@@ -709,7 +709,7 @@
         <img src="${datos.img}" alt="${datos.visible}">
         <div>
           <h4>${datos.visible}</h4>
-          <p>Apariciones confirmadas: <strong>${apariciones}</strong></p>
+          <p>Identificaciones confirmadas: <strong>${apariciones}</strong></p>
           <p>Confianza promedio: <strong>${promedio}%</strong></p>
         </div>
       `;
